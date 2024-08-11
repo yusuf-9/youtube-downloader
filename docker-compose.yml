@@ -25,6 +25,8 @@ services:
       - app-network
     depends_on:
       - nats
+    # deploy:
+    #   replicas: 1
 
   requests-handler:
     build: ./requests-handler

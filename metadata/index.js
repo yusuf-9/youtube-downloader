@@ -20,8 +20,12 @@ async function loadApp() {
         app.registerSubscriptionHandlers();
     } catch (e) {
         console.error(e)
-        process.exit(1)
+        process.exit(0)
     }
 }
 
 loadApp();
+
+// TODO - store files in s3
+// TODO - Create a store for storing tasks
+// TODO - Cancel processes if their corresponding tasks are cancelled

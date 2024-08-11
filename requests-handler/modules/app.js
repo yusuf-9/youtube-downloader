@@ -7,6 +7,7 @@ class App {
         this.natsConnection = natsConnection
         this.stringEncoder = StringCodec()
         this.videoMetaDataFetchedSubscription = natsConnection.subscribe(process.env.NATS_EVENT_VIDEO_METADATA_FETCHED)
+        this.videoDownloadedSubscription = natsConnection.subscribe(process.env.NATS_EVENT_VIDEO_DOWNLOADED)
     }
 
     configureServer() {
@@ -21,17 +22,27 @@ class App {
 
     registerSubscriptionHandlers() {
         this.registerVideoMetaDataFetchedSubscriptionHandler();
+        this.registerVideoDownloadedSubscriptionHandler();
     }
 
     async registerVideoMetaDataFetchedSubscriptionHandler() {
         for await (const event of this.videoMetaDataFetchedSubscription) {
-            const decodedData = this.stringEncoder.decode(event?.data);
-            const parsedData = JSON.parse(decodedData)
-            const videoId = parsedData?.metaData?.id;
-            if (videoId) this.publishEvent(
-                process.env.NATS_EVENT_VIDEO_DOWNLOAD_REQUEST_RECIEVED,
-                JSON.stringify({ videoId, format: "mp4" })
-            );
+            const decodedData = this.stringEncoder.decode(event.data)
+            const videoId = JSON.parse(decodedData)
+            if (videoId) {
+                this.publishEvent(
+                    process.env.NATS_EVENT_VIDEO_DOWNLOAD_REQUEST_RECIEVED,
+                    JSON.stringify(videoId)
+                );
+            }
+        }
+    }
+
+    async registerVideoDownloadedSubscriptionHandler() {
+        for await (const event of this.videoDownloadedSubscription) {
+            const decodedData = this.stringEncoder.decode(event.data)
+            const resourceURL = JSON.parse(decodedData)
+            console.log("video downloaded. URL - ", resourceURL)
         }
     }
 

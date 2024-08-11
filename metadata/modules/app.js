@@ -1,11 +1,15 @@
 const StringCodec = require('nats').StringCodec
-const { exec } = require('child_process');
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
 
 class App {
     constructor(natsConnection) {
         this.natsConnection = natsConnection;
         this.stringEncoder = StringCodec();
-        this.videoRequestSubscription = natsConnection.subscribe(process.env.NATS_EVENT_VIDEO_REQUEST_CREATED);
+        this.videoRequestSubscription = natsConnection.subscribe(
+            process.env.NATS_EVENT_VIDEO_REQUEST_CREATED,
+            {queue: process.env.NATS_EVENT_VIDEO_REQUEST_CREATED_QUEUE_NAME}
+        );
     }
     registerSubscriptionHandlers() {
         this.registerVideoRequestSubscriptionHandler()
@@ -13,29 +17,18 @@ class App {
 
     async registerVideoRequestSubscriptionHandler() {
         for await (const event of this.videoRequestSubscription) {
-            this.fetchVideoMetaData(event.data);
+            this.fetchVideoMetaData(event?.data);
         }
     }
 
-    fetchVideoMetaData(url) {
-        exec(`yt-dlp --flat-playlist --dump-json "${url}"`, (error, stdout) => {
-            if (error) {
-                console.error(error);
-            }
-
-            try {
-                const parsedData = JSON.parse(stdout);
-                this.publishEvent(
-                    process.env.NATS_EVENT_VIDEO_METADATA_FETCHED, 
-                    JSON.stringify({ 
-                        metaData: parsedData, 
-                        url: url 
-                    })
-                );
-            } catch (parseError) {
-                console.error(parseError);
-            }
-        });
+    async fetchVideoMetaData(url) {
+        try {
+            const { stdout } = await exec(`yt-dlp --flat-playlist --dump-json "${url}"`);
+            const parsedData = JSON.parse(stdout);
+            this.publishEvent(process.env.NATS_EVENT_VIDEO_METADATA_FETCHED, JSON.stringify(parsedData?.id));
+        } catch (error) {
+            console.error(`Failed to fetch video metadata: ${error.message}`);
+        }
     }
 
     publishEvent(eventName, eventData) {
