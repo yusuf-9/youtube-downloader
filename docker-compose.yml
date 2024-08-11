@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  nats:
+    image: nats:alpine
+    container_name: nats-server
+    networks:
+      - app-network
+  download:
+    build: ./download
+    container_name: download-service
+    env_file:
+      - ./download/.env
+    networks:
+      - app-network
+    depends_on:
+      - nats
+
+  metadata:
+    build: ./metadata
+    container_name: metadata-service
+    env_file:
+      - ./metadata/.env
+    networks:
+      - app-network
+    depends_on:
+      - nats
+
+  requests-handler:
+    build: ./requests-handler
+    container_name: requests-handler-service
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./requests-handler/.env
+    networks:
+      - app-network
+    depends_on:
+      - nats
+
+networks:
+  app-network:
+    driver: bridge
