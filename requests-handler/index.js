@@ -2,7 +2,8 @@ const { connect } = require("nats");
 const dotenv = require("dotenv");
 
 // modules
-const App = require("./modules/app")
+const App = require("./modules/app");
+const Store = require("./modules/store");
 
 async function loadApp() {
     try {
@@ -14,8 +15,11 @@ async function loadApp() {
             servers: process.env.NATS_SERVER_URL
         });
 
+        // instantiate the app store
+        const appStore = new Store();
+
         // instantiate the main app and NATS subscriptions
-        const app = new App(natsConnection);
+        const app = new App(natsConnection, appStore);
 
         // configure the server
         app.configureServer();
@@ -27,7 +31,7 @@ async function loadApp() {
         app.start();
     } catch (e) {
         console.error(e)
-        process.exit(0)
+        process.exit(1)
     }
 }
 

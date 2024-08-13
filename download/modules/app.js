@@ -8,7 +8,10 @@ class App {
     constructor(natsConnection, storageService) {
         this.natsConnection = natsConnection;
         this.stringEncoder = StringCodec();
-        this.videoDownloadRequestSubscription = natsConnection.subscribe(process.env.NATS_EVENT_VIDEO_DOWNLOAD_REQUEST_RECIEVED);
+        this.videoDownloadRequestSubscription = natsConnection.subscribe(
+            process.env.NATS_EVENT_VIDEO_DOWNLOAD_REQUEST_RECIEVED,
+            { queue: process.env.NATS_EVENT_VIDEO_DOWNLOAD_REQUEST_RECIEVED_QUEUE_NAME }
+        );
         this.storageService = storageService;
     }
     registerSubscriptionHandlers() {
@@ -17,51 +20,72 @@ class App {
 
     async registerVideoDownloadRequestSubscriptionHandler() {
         for await (const event of this.videoDownloadRequestSubscription) {
-            const decodedData = this.stringEncoder.decode(event?.data);
-            const videoId = JSON.parse(decodedData)
-            if (videoId) this.downloadVideoAndStoreItToS3(videoId);
+            this.createErrorBoundary(() => {
+                const decodedData = this.stringEncoder.decode(event?.data);
+                const parsedData = JSON.parse(decodedData);
+                if (parsedData?.videoId && parsedData?.requestId) {
+                    this.downloadVideoAndStoreItToS3(
+                        parsedData?.videoId,
+                        parsedData?.format,
+                        parsedData?.requestId
+                    );
+                }
+            })
         }
     }
 
-    async downloadVideoAndStoreItToS3(videoId, format = "mp4") {
-        const url = `https://www.youtube.com/watch?v=${videoId}`;
-        const fileName = `${videoId}-${Math.ceil(Math.random() * 10000)}.${format}`
-        const downloadPath = path.join(__dirname, '../downloads', fileName);
-
-        const { error } = await exec(`yt-dlp -f ${format} -o "${downloadPath}" ${url}`)
-        if (error) {
-            console.error(error);
-            return;
-        }
-
+    async downloadVideoAndStoreItToS3(videoId, format = "mp4", requestId) {
         try {
+            const url = `https://www.youtube.com/watch?v=${videoId}`;
+            const fileName = `${videoId}-${Math.ceil(Math.random() * 10000)}.${format}`
+            const downloadPath = path.join(__dirname, '../downloads', fileName);
+
+            const { error } = await exec(`yt-dlp -f ${format} -o "${downloadPath}" ${url}`)
+            if (error) {
+                throw new Error(error?.message || "Error downloading video")
+            }
+
             const s3Url = await this.storageService.uploadFile(
                 downloadPath,
                 fileName
             );
-            this.publishEvent(process.env.NATS_EVENT_VIDEO_DOWNLOADED, JSON.stringify(s3Url));
-        } catch (err) {
-            console.error('Failed to upload to S3:', err);
-            return;
+            this.publishEvent(
+                process.env.NATS_EVENT_VIDEO_DOWNLOADED,
+                JSON.stringify({ url: s3Url, requestId })
+            );
+            this.deleteFile(downloadPath);
+        } catch (error) {
+            this.publishEvent(
+                process.env.NATS_EVENT_VIDEO_DOWNLOAD_REQUEST_FAILED,
+                JSON.stringify({ requestId, error: error?.message })
+            );
+            console.error('Failed to download video', error?.message)
         }
 
-        this.deleteFile(downloadPath);
     }
 
     async deleteFile(filePath) {
-        const absolutePath = path.resolve(filePath);
+        this.createErrorBoundary(() => {
+            const absolutePath = path.resolve(filePath);
 
-        fs.unlink(absolutePath, (err) => {
-            if (err) {
-                console.error(`Error deleting the file at ${absolutePath}:`, err);
-            } else {
-                console.log(`File deleted successfully: ${absolutePath}`);
-            }
-        });
+            fs.unlink(absolutePath, (err) => {
+                if (err) {
+                    console.error(`Error deleting the file at ${absolutePath}:`, err);
+                }
+            });
+        })
     }
 
     publishEvent(eventName, eventData) {
         this.natsConnection.publish(eventName, this.stringEncoder.encode(eventData))
+    }
+
+    createErrorBoundary(callback) {
+        try {
+            callback()
+        } catch (error) {
+            console.error(error);
+        }
     }
 }
 

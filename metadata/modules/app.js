@@ -8,7 +8,7 @@ class App {
         this.stringEncoder = StringCodec();
         this.videoRequestSubscription = natsConnection.subscribe(
             process.env.NATS_EVENT_VIDEO_REQUEST_CREATED,
-            {queue: process.env.NATS_EVENT_VIDEO_REQUEST_CREATED_QUEUE_NAME}
+            { queue: process.env.NATS_EVENT_VIDEO_REQUEST_CREATED_QUEUE_NAME }
         );
     }
     registerSubscriptionHandlers() {
@@ -17,22 +17,43 @@ class App {
 
     async registerVideoRequestSubscriptionHandler() {
         for await (const event of this.videoRequestSubscription) {
-            this.fetchVideoMetaData(event?.data);
+            this.createErrorBoundary(() => {
+                const decodedData = this.stringEncoder.decode(event?.data)
+                const parsedData = JSON.parse(decodedData)
+                if (parsedData?.url && parsedData?.requestId) {
+                    this.fetchVideoMetaData(parsedData?.url, parsedData?.requestId);
+                }
+            })
         }
     }
 
-    async fetchVideoMetaData(url) {
+    async fetchVideoMetaData(url, requestId) {
         try {
-            const { stdout } = await exec(`yt-dlp --flat-playlist --dump-json "${url}"`);
+            const { stdout } = await exec(`yt-dlp --flat-playlist --dump-json "${url + url}"`);
             const parsedData = JSON.parse(stdout);
-            this.publishEvent(process.env.NATS_EVENT_VIDEO_METADATA_FETCHED, JSON.stringify(parsedData?.id));
+            this.publishEvent(
+                process.env.NATS_EVENT_VIDEO_METADATA_FETCHED,
+                JSON.stringify({ metaData: parsedData, requestId })
+            );
         } catch (error) {
+            this.publishEvent(
+                process.env.NATS_EVENT_VIDEO_DOWNLOAD_REQUEST_FAILED,
+                JSON.stringify({ requestId, error: error?.message })
+            );
             console.error(`Failed to fetch video metadata: ${error.message}`);
         }
     }
 
     publishEvent(eventName, eventData) {
         this.natsConnection.publish(eventName, this.stringEncoder.encode(eventData))
+    }
+
+    createErrorBoundary(callback) {
+        try {
+            callback()
+        } catch (error) {
+            console.error(error);
+        }
     }
 }
 
