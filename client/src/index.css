@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --primary-main: #6c5ce7;
+    --primary-light: #c7c1f6;
+    --primary-dark: #1c1171;
+
+    --accent-main: #55efc4;
+    --accent-light: #cefaee;
+    --accent-dark: #13cc99;
+
+    --theme-main: #f5f6fa;
+    --theme-light: #fff;
+    --theme-dark: #f0f0f4;
+
+    --theme-contrast-main: #474747;
+    --theme-contrast-light: #696969;
+    --theme-contrast-dark: #000;
+}
+body {
+    @apply flex flex-col w-screen h-screen
+}
