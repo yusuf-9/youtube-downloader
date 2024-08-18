@@ -28,7 +28,7 @@ class App {
                 JSON.stringify({ url: videoUrl, requestId: videoRequestId })
             );
 
-            res.status(200).json({
+            res.status(201).json({
                 data: videoRequestId,
                 message: 'Video request created'
             });
@@ -75,7 +75,7 @@ class App {
             if (!videoRequest) throw new Error("Invalid request ID")
 
             res.status(200).json({
-                data: videoRequest?.status,
+                status: videoRequest?.status,
                 message: videoRequest?.error || ''
             });
         })
@@ -132,7 +132,7 @@ class App {
     }
 
     start() {
-        const port = process.env.PORT || 3000
+        const port = process.env.PORT
         this.app.listen(port, () => {
             console.log(`Server is running on port ${port}`);
         });

@@ -34,7 +34,7 @@ services:
     build: ./requests-handler
     container_name: requests-handler-service
     ports:
-      - "3000:3000"
+      - "3333:3333"
     env_file:
       - ./requests-handler/.env
     networks:
