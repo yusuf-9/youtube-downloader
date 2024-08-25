@@ -29,7 +29,7 @@ class App {
 
     async fetchVideoMetaData(url, requestId) {
         try {
-            const { stdout } = await exec(`yt-dlp --flat-playlist --dump-json "${url + url}"`);
+            const { stdout } = await exec(`yt-dlp --skip-download --flat-playlist --dump-json "${url}"`);
             const parsedData = JSON.parse(stdout);
             this.publishEvent(
                 process.env.NATS_EVENT_VIDEO_METADATA_FETCHED,

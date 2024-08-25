@@ -47,16 +47,20 @@ class App {
         })
 
         this.app.post("/register-format", (req, res) => {
-            const format = req.body?.format;
+            const formatId = req.body?.format;
             const requestId = req?.body?.id;
-            if (!format ||!requestId) throw new Error("Format or request ID has not been provided")
+            if (!formatId ||!requestId) throw new Error("Format or request ID has not been provided")
 
-            const videoId = this.appStore.store[requestId]?.metaData?.id;
-            if (!videoId) throw new Error('Invalid request ID');
+            const videoRequest = this.appStore.store[requestId];
+            if (!videoRequest) throw new Error('Invalid request ID');
+
+            const videoId = videoRequest?.metaData?.id;
+            const selectedFormat = videoRequest?.metaData?.formats?.find(format => format?.format_id === formatId);
+            if (!selectedFormat) throw new Error('Invalid format');
 
             this.publishEvent(
                 process.env.NATS_EVENT_VIDEO_DOWNLOAD_REQUEST_RECIEVED,
-                JSON.stringify({ videoId, format, requestId })
+                JSON.stringify({ videoId, format: { id: selectedFormat?.format_id, extension: selectedFormat?.ext }, requestId })
             );
 
             this.appStore.updateRequestStatus(requestId, "downloading");
@@ -76,7 +80,8 @@ class App {
 
             res.status(200).json({
                 status: videoRequest?.status,
-                message: videoRequest?.error || ''
+                message: videoRequest?.error || '',
+                ...(videoRequest?.downloadURL && {data: videoRequest.downloadURL})
             });
         })
 

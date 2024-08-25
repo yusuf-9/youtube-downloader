@@ -15,8 +15,8 @@ function Hero(props: Props) {
         <h1 className="bg-accent-main py-2 px-4 rounded-xl">{highlightedTitle}</h1>
         <h1>Downloader</h1>
       </div>
-      <p className="text-theme-contrast-light text-sm w-full">{description}</p>
-      {!!warningText && <p className="w-full mx-auto uppercase text-center rounded-lg bg-red-100 text-red-500 py-2 text-xs sm:text-sm font-medium">{warningText}</p>}
+      <p className="text-theme-contrast-main text-base w-full">{description}</p>
+      {!!warningText && <p className="w-full mx-auto uppercase text-center rounded-lg bg-red-100 text-red-500 border border-red-500 py-2 text-xs sm:text-sm font-medium">{warningText}</p>}
     </div>
   );
 }

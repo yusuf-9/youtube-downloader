@@ -26,7 +26,8 @@ class App {
                 if (parsedData?.videoId && parsedData?.requestId) {
                     this.downloadVideoAndStoreItToS3(
                         parsedData?.videoId,
-                        parsedData?.format,
+                        parsedData?.format?.id,
+                        parsedData?.format?.extension,
                         parsedData?.requestId
                     );
                 }
@@ -34,13 +35,13 @@ class App {
         }
     }
 
-    async downloadVideoAndStoreItToS3(videoId, format = "mp4", requestId) {
+    async downloadVideoAndStoreItToS3(videoId, formatId = "mp4", formatExtension = 'mp4', requestId) {
         try {
             const url = `https://www.youtube.com/watch?v=${videoId}`;
-            const fileName = `${videoId}-${Math.ceil(Math.random() * 10000)}.${format}`
+            const fileName = `${videoId}-${Math.ceil(Math.random() * 10000)}.${formatExtension}`
             const downloadPath = path.join(__dirname, '../downloads', fileName);
 
-            const { error } = await exec(`yt-dlp -f ${format} -o "${downloadPath}" ${url}`)
+            const { error } = await exec(`yt-dlp -f ${formatId} -o "${downloadPath}" ${url}`)
             if (error) {
                 throw new Error(error?.message || "Error downloading video")
             }
