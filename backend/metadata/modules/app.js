@@ -33,7 +33,10 @@ class App {
             const parsedData = JSON.parse(stdout);
             this.publishEvent(
                 process.env.NATS_EVENT_VIDEO_METADATA_FETCHED,
-                JSON.stringify({ metaData: parsedData, requestId })
+                JSON.stringify({
+                    metaData: this.formatMetaData(parsedData),
+                    requestId
+                })
             );
         } catch (error) {
             this.publishEvent(
@@ -41,6 +44,23 @@ class App {
                 JSON.stringify({ requestId, error: error?.message })
             );
             console.error(`Failed to fetch video metadata: ${error.message}`);
+        }
+    }
+
+    formatMetaData(metaData) {
+        const formatResolutions = metaData?.formats?.reduce((acc, format) => {
+            if (!acc?.includes(format?.resolution)) {
+                acc.push(format?.resolution);
+            }
+            return acc;
+        }, [])
+
+        return {
+            title: metaData?.title,
+            duration: metaData?.duration,
+            thumbnail: metaData?.thumbnail,
+            webpage_url: metaData?.webpage_url,
+            formats: formatResolutions
         }
     }
 

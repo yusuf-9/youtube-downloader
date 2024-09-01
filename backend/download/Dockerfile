@@ -1,8 +1,8 @@
 # Use an appropriate base image for your service
 FROM node:18-alpine
 
-# Install Python and pip
-RUN apk add --no-cache python3 py3-pip
+# Install Python, pip, ffmpeg, and ffprobe
+RUN apk add --no-cache python3 py3-pip ffmpeg
 
 # Install yt-dlp
 RUN pip3 install yt-dlp --break-system-packages

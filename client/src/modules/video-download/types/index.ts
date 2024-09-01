@@ -9,20 +9,25 @@ export type PollVideoStatusResponse = {
   data?: string;
 };
 
+export type Formats = {
+  video: {
+    resolutions: string[];
+    extensions: string[];
+  };
+  audio: {
+    resolutions: string[];
+    extensions: string[];
+  };
+};
+
 export type FetchMetaDataResponse = {
   data: {
     title: string;
     duration: number;
     thumbnail: string;
     webpage_url: string;
-    formats: any[];
+    formats: string[];
   };
-};
-
-export type Format = {
-  id: string;
-  fileSize?: string;
-  resolution: string;
 };
 
 export type MetaData = {
@@ -30,8 +35,5 @@ export type MetaData = {
   duration: number;
   thumbnail: string;
   webpage_url: string;
-  formats: Record<
-    string,
-    Format[]
-  >;
+  formats: Formats;
 };

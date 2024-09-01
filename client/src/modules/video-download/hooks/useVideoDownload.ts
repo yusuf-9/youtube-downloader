@@ -9,18 +9,27 @@ import { REQUEST_STATES } from "../constants";
 // services
 import formatsAPI from "../services/formats";
 
+// hooks
+import usePolling from "@/common/hooks/usePolling";
+
 // types
 import {
   FetchMetaDataResponse,
-  Format,
   MetaData,
   PollVideoStatusResponse,
   RegisterVideoRequestResponse,
 } from "../types";
-import usePolling from "@/common/hooks/usePolling";
 
 type Keys = keyof typeof REQUEST_STATES;
 type values = (typeof REQUEST_STATES)[Keys];
+
+export type SelectedFormatState = Record<
+  "video" | "audio",
+  {
+    extension: string;
+    resolution: string;
+  }
+>;
 
 function useVideoDownload() {
   // state ---------------------------------------------------------------------------------------------------------
@@ -35,7 +44,10 @@ function useVideoDownload() {
     status: "",
     metaData: null,
   });
-  const [selectedFormat, setSelectedFormat] = useState<Format | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState<SelectedFormatState>({
+    video: { extension: "", resolution: "" },
+    audio: { extension: "", resolution: "" },
+  });
 
   // event handlers ------------------------------------------------------------------------------------------------
 
@@ -92,7 +104,7 @@ function useVideoDownload() {
       try {
         const response = await axiosService.post<RegisterVideoRequestResponse>("/register-format", {
           id: requestState.id,
-          format: selectedFormat?.id,
+          // format: selectedFormat?.id, TODO
         });
         setRequestState(prev => ({
           ...prev,
@@ -106,17 +118,58 @@ function useVideoDownload() {
         setRequestRegistrationError("Something went wrong.. Please try again :-(");
       }
     },
-    [requestState.id, selectedFormat?.id]
+    [requestState.id]
   );
 
-  const handleDownloadVideo = useCallback((link: string) => {
-    const a = document.createElement("a");
-    a.href = link;
-    a.download = requestState.metaData?.title! + link?.split(".")?.[1];
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }, [requestState.metaData?.title])
+  const handleDownloadVideo = useCallback(
+    (link: string) => {
+      const a = document.createElement("a");
+      a.href = link;
+      a.download = requestState.metaData?.title! + link?.split(".")?.[1];
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    },
+    [requestState.metaData?.title]
+  );
+
+  const handleSelectFormatResolution = useCallback((key: "video" | "audio", resolution: string) => {
+    setSelectedFormat(prev => ({
+      ...Object.keys(prev).reduce(
+        (acc, formatKey) => {
+          acc[formatKey as keyof SelectedFormatState] = {
+            ...prev[formatKey as keyof SelectedFormatState],
+            resolution: "",
+          };
+          return acc;
+        },
+        {
+          video: {
+            extension: "",
+            resolution: "",
+          },
+          audio: {
+            extension: "",
+            resolution: "",
+          },
+        }
+      ),
+      [key]: {
+        ...prev[key],
+        resolution,
+      },
+    }));
+  }, []);
+
+  const handleSelectFormatExtension = useCallback((key: "video" | "audio", extension: string) => {
+    setSelectedFormat(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        extension,
+      },
+    }));
+  }, []);
 
   // polling callbacks ------------------------------------------------------------------------------
 
@@ -140,7 +193,7 @@ function useVideoDownload() {
           ...prev,
           status: REQUEST_STATES.FINISHED,
         }));
-        if(data?.data) handleDownloadVideo(data.data);
+        if (data?.data) handleDownloadVideo(data.data);
       }
     },
     [handleDownloadVideo, requestState.status]
@@ -179,6 +232,8 @@ function useVideoDownload() {
     selectedFormat,
     setSelectedFormat,
     handleRegisterVideoFormat,
+    handleSelectFormatExtension,
+    handleSelectFormatResolution,
   };
 }
 
