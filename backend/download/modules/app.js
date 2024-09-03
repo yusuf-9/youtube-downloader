@@ -2,6 +2,7 @@ const StringCodec = require('nats').StringCodec
 const path = require('path');
 const util = require('util');
 const fs = require('fs');
+const { AUDIO_FORMAT_EXTENSIONS } = require('../constants');
 const exec = util.promisify(require('child_process').exec);
 
 class App {
@@ -23,25 +24,33 @@ class App {
             this.createErrorBoundary(() => {
                 const decodedData = this.stringEncoder.decode(event?.data);
                 const parsedData = JSON.parse(decodedData);
-                if (parsedData?.videoId && parsedData?.requestId) {
+                if (parsedData?.videoId && parsedData?.requestId && parsedData?.format) {
                     this.downloadVideoAndStoreItToS3(
                         parsedData?.videoId,
-                        parsedData?.format?.id,
+                        parsedData?.requestId,
                         parsedData?.format?.extension,
-                        parsedData?.requestId
+                        parsedData?.format?.resolution,
                     );
                 }
             })
         }
     }
 
-    async downloadVideoAndStoreItToS3(videoId, formatId = "mp4", formatExtension = 'mp4', requestId) {
+    async downloadVideoAndStoreItToS3(videoId, requestId, formatExtension = 'mp4', formatResolution = "best quality") {
         try {
+            const isAudioFormat = AUDIO_FORMAT_EXTENSIONS.includes(formatExtension);
+
             const url = `https://www.youtube.com/watch?v=${videoId}`;
-            const fileName = `${videoId}-${Math.ceil(Math.random() * 10000)}.${formatExtension}`
+
+            const fileName = `${requestId}.${isAudioFormat ? 'mp3' : 'mp4'}`;
             const downloadPath = path.join(__dirname, '../downloads', fileName);
 
-            const { error } = await exec(`yt-dlp -f ${formatId} -o "${downloadPath}" ${url}`)
+            const ytDownloadCommand = `yt-dlp -f ${isAudioFormat ?
+                    'bestaudio --extract-audio --audio-format mp3 --audio-quality 0' :
+                    'bestvideo+bestaudio --merge-output-format mp4'
+                } -o "${downloadPath}" ${url}`
+
+            const { error } = await exec(ytDownloadCommand)
             if (error) {
                 throw new Error(error?.message || "Error downloading video")
             }
