@@ -33,7 +33,8 @@ function VideoDownloadModule(props: Props) {
   const isRequestLoading =
     requestStatus === REQUEST_STATES.REGISTERING_REQUEST ||
     requestStatus === REQUEST_STATES.PROCESSING ||
-    requestStatus === REQUEST_STATES.FETCHING_DETAILS;
+    requestStatus === REQUEST_STATES.FETCHING_DETAILS || 
+    requestStatus === REQUEST_STATES.DOWNLOADING;
 
   const allowFormatMenuRender = Boolean(requestMetaData?.formats);
 

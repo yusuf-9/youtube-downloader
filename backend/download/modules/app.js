@@ -1,10 +1,10 @@
-const StringCodec = require('nats').StringCodec
 const path = require('path');
 const util = require('util');
 const fs = require('fs');
-const { AUDIO_FORMAT_EXTENSIONS } = require('../constants');
 const exec = util.promisify(require('child_process').exec);
 
+const StringCodec = require('nats').StringCodec
+const { AUDIO_FORMAT_EXTENSIONS, VIDEO_FORMAT_EXTENSIONS } = require('../constants');
 class App {
     constructor(natsConnection, storageService) {
         this.natsConnection = natsConnection;
@@ -42,28 +42,33 @@ class App {
 
             const url = `https://www.youtube.com/watch?v=${videoId}`;
 
-            const fileName = `${requestId}.${isAudioFormat ? 'mp3' : 'mp4'}`;
-            const downloadPath = path.join(__dirname, '../downloads', fileName);
+            const rawFileName = requestId + '-raw.' + (isAudioFormat ? 'mp3' : 'webm');
+
+            const downloadPath = path.join(__dirname, '../downloads', rawFileName);
 
             const ytDownloadCommand = `yt-dlp -f ${isAudioFormat ?
-                    'bestaudio --extract-audio --audio-format mp3 --audio-quality 0' :
-                    'bestvideo+bestaudio --merge-output-format mp4'
-                } -o "${downloadPath}" ${url}`
+                'bestaudio --extract-audio --audio-format mp3 --audio-quality 0' :
+                'bestvideo+bestaudio'
+                } -o "${downloadPath}" "${url}"`
 
-            const { error } = await exec(ytDownloadCommand)
+            const { error } = await exec(ytDownloadCommand);
             if (error) {
                 throw new Error(error?.message || "Error downloading video")
             }
 
-            const s3Url = await this.storageService.uploadFile(
+            const convertedFileOutputPath = path.join(__dirname, '../converts', `${requestId}.${formatExtension}`);
+            await this.convertFileIntoSpecifiedFormat(
+                formatExtension,
+                formatResolution,
                 downloadPath,
-                fileName
-            );
-            this.publishEvent(
-                process.env.NATS_EVENT_VIDEO_DOWNLOADED,
-                JSON.stringify({ url: s3Url, requestId })
-            );
-            this.deleteFile(downloadPath);
+                convertedFileOutputPath
+            )
+
+            await this.uploadFileToS3(
+                convertedFileOutputPath,
+                `${requestId}.${formatExtension}`,
+                requestId,
+            )
         } catch (error) {
             this.publishEvent(
                 process.env.NATS_EVENT_VIDEO_DOWNLOAD_REQUEST_FAILED,
@@ -71,8 +76,18 @@ class App {
             );
             console.error('Failed to download video', error?.message)
         }
-
     }
+
+    async getDownloadedFileExtension(downloadPath) {
+        const files = await fs.readdir(path.dirname(downloadPath));
+        const downloadedFile = files.find(file => file.startsWith(path.basename(downloadPath)));
+
+        if (!downloadedFile) {
+            throw new Error('Downloaded file not found.');
+        }
+
+        return path.extname(downloadedFile); // Returns the file extension, e.g., ".mp4", ".webm"
+    };
 
     async deleteFile(filePath) {
         this.createErrorBoundary(() => {
@@ -84,6 +99,43 @@ class App {
                 }
             });
         })
+    }
+
+    async uploadFileToS3(downloadPath, remoteFileName, requestId) {
+        const s3Url = await this.storageService.uploadFile(
+            downloadPath,
+            remoteFileName
+        );
+        this.publishEvent(
+            process.env.NATS_EVENT_VIDEO_DOWNLOADED,
+            JSON.stringify({ url: s3Url, requestId })
+        );
+        this.deleteFile(downloadPath);
+    }
+
+    async convertFileIntoSpecifiedFormat(extension, resolution, downloadedFilePath, outputFilePath,) {
+        let ffmpegCommand;
+
+        switch (true) {
+            case AUDIO_FORMAT_EXTENSIONS.includes(extension):
+                ffmpegCommand = `ffmpeg -i "${downloadedFilePath}" -b:a ${resolution} "${outputFilePath}"`;
+                break;
+            case VIDEO_FORMAT_EXTENSIONS.includes(extension):
+                ffmpegCommand = `ffmpeg -i "${downloadedFilePath}" -vf "scale=${resolution}" "${outputFilePath}"`;
+                break;
+            default:
+                break;
+        }
+
+        if (!ffmpegCommand) {
+            throw new Error('Unsupported format. Please specify a valid output format.');
+        }
+
+        // Execute the ffmpeg command to convert the file
+        await exec(ffmpegCommand);
+
+        // delete the downloaded file
+        this.deleteFile(downloadedFilePath);
     }
 
     publishEvent(eventName, eventData) {

@@ -1,14 +1,18 @@
 # Use an appropriate base image for your service
 FROM node:18-alpine
 
-# Install Python, pip, ffmpeg, and ffprobe
-RUN apk add --no-cache python3 py3-pip ffmpeg
+# Install Python and pip
+RUN apk add --no-cache python3 py3-pip
 
-# Install yt-dlp
-RUN pip3 install yt-dlp --break-system-packages
+# Install yt-dlp and ffmpeg
+RUN pip3 install yt-dlp --break-system-packages && \
+    apk add --no-cache ffmpeg
 
 # Set the working directory inside the container
 WORKDIR /app
+
+# Create the downloads directory and ensure permissions
+RUN mkdir -p /app/downloads && chmod -R 777 /app/downloads
 
 # Copy package.json and package-lock.json into the container
 COPY package*.json ./
