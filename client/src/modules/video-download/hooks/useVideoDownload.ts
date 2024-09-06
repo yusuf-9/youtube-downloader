@@ -13,12 +13,7 @@ import formatsAPI from "../services/formats";
 import usePolling from "@/common/hooks/usePolling";
 
 // types
-import {
-  FetchMetaDataResponse,
-  MetaData,
-  PollVideoStatusResponse,
-  RegisterVideoRequestResponse,
-} from "../types";
+import { FetchMetaDataResponse, MetaData, PollVideoStatusResponse, RegisterVideoRequestResponse } from "../types";
 
 type Keys = keyof typeof REQUEST_STATES;
 type values = (typeof REQUEST_STATES)[Keys];
@@ -80,10 +75,7 @@ function useVideoDownload() {
       setRequestState(prev => ({
         ...prev,
         status: REQUEST_STATES.AWAITING_FORMAT,
-        metaData: {
-          ...response?.data?.data,
-          formats: formatsAPI.formatFormatOptions(response?.data?.data?.formats),
-        },
+        metaData: response?.data?.data,
       }));
     } catch (error) {
       if (axiosService.isAxiosError(error)) {
@@ -101,10 +93,18 @@ function useVideoDownload() {
         status: REQUEST_STATES.REGISTERING_FORMAT,
       }));
 
+      const format = Object.values(selectedFormat).find(format => Boolean(format.resolution));
+      if (!format) {
+        return setRequestRegistrationError("Please select a video format.");
+      }
+
       try {
-        const response = await axiosService.post<RegisterVideoRequestResponse>("/register-format", {
+        await axiosService.post<RegisterVideoRequestResponse>("/register-format", {
           id: requestState.id,
-          // format: selectedFormat?.id, TODO
+          format: {
+            extension: format.extension,
+            resolution: format.resolution,
+          },
         });
         setRequestState(prev => ({
           ...prev,
@@ -118,7 +118,7 @@ function useVideoDownload() {
         setRequestRegistrationError("Something went wrong.. Please try again :-(");
       }
     },
-    [requestState.id]
+    [requestState.id, selectedFormat]
   );
 
   const handleDownloadVideo = useCallback(

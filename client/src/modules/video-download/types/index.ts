@@ -26,7 +26,7 @@ export type FetchMetaDataResponse = {
     duration: number;
     thumbnail: string;
     webpage_url: string;
-    formats: string[];
+    formats: Formats;
   };
 };
 

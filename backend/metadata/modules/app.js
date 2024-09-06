@@ -1,5 +1,6 @@
 const StringCodec = require('nats').StringCodec
 const util = require('util');
+const { DEFAULT_FORMATS_CONFIG, DEFAULT_RESOLUTION } = require('../constants');
 const exec = util.promisify(require('child_process').exec);
 
 class App {
@@ -55,17 +56,46 @@ class App {
             return acc;
         }, [])
 
+        const videoResolutions = formatResolutions
+            ?.reduce((acc, format) => {
+                if (this.validateVideoResolution(format)) {
+                    acc.push(format);
+                }
+
+                return acc;
+            }, [])
+            ?.sort((a, b) => {
+                const resolutionA = Number(a?.split("x")?.[1]);
+                const resolutionB = Number(b?.split("x")?.[1]);
+                return resolutionB - resolutionA;
+            });
+
         return {
+            id: metaData?.id,
             title: metaData?.title,
             duration: metaData?.duration,
             thumbnail: metaData?.thumbnail,
             webpage_url: metaData?.webpage_url,
-            formats: formatResolutions
+            formats: {
+                ...DEFAULT_FORMATS_CONFIG,
+                video: {
+                    ...DEFAULT_FORMATS_CONFIG.video,
+                    resolutions: [
+                        DEFAULT_RESOLUTION,
+                        ...videoResolutions
+                    ]
+                }
+            }
         }
     }
 
     publishEvent(eventName, eventData) {
         this.natsConnection.publish(eventName, this.stringEncoder.encode(eventData))
+    }
+
+    validateVideoResolution(resolution) {
+        const formatPatten = /^\d+x\d+$/;
+        return formatPatten.test(resolution);
     }
 
     createErrorBoundary(callback) {

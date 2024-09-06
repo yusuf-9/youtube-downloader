@@ -19,7 +19,7 @@ class App {
 
         this.app.post("/register-request", (req, res) => {
             const videoUrl = req.body?.url;
-            if(!videoUrl) throw new Error("Video URL has not been provided")
+            if (!videoUrl) throw new Error("Video URL has not been provided")
 
             const videoRequestId = this.appStore.addVideoRequest(videoUrl)
 
@@ -47,20 +47,23 @@ class App {
         })
 
         this.app.post("/register-format", (req, res) => {
-            const formatId = req.body?.format;
+            const format = req.body?.format;
             const requestId = req?.body?.id;
-            if (!formatId ||!requestId) throw new Error("Format or request ID has not been provided")
+            if (!format || !requestId) throw new Error("Format or request ID has not been provided")
 
             const videoRequest = this.appStore.store[requestId];
             if (!videoRequest) throw new Error('Invalid request ID');
 
             const videoId = videoRequest?.metaData?.id;
-            const selectedFormat = videoRequest?.metaData?.formats?.find(format => format?.format_id === formatId);
+            const selectedFormat = Object.values(videoRequest?.metaData?.formats).find((formatData) => {
+                return formatData?.resolutions?.includes(format?.resolution) && 
+                    formatData?.extensions?.includes(format?.extension)
+            })
             if (!selectedFormat) throw new Error('Invalid format');
 
             this.publishEvent(
                 process.env.NATS_EVENT_VIDEO_DOWNLOAD_REQUEST_RECIEVED,
-                JSON.stringify({ videoId, format: { id: selectedFormat?.format_id, extension: selectedFormat?.ext }, requestId })
+                JSON.stringify({ videoId, format, requestId })
             );
 
             this.appStore.updateRequestStatus(requestId, "downloading");
@@ -81,12 +84,12 @@ class App {
             res.status(200).json({
                 status: videoRequest?.status,
                 message: videoRequest?.error || '',
-                ...(videoRequest?.downloadURL && {data: videoRequest.downloadURL})
+                ...(videoRequest?.downloadURL && { data: videoRequest.downloadURL })
             });
         })
 
         this.app.use((error, req, res, next) => {
-            return res.status(400).json({error: error?.message})
+            return res.status(400).json({ error: error?.message })
         })
     }
 
